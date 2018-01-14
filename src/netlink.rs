@@ -1,10 +1,10 @@
 use nl::socket::NlSocket;
-use nl::nlhdr::NlHdr;
-use nl::genlhdr::{GenlHdr,NlAttrHdr};
+use nl::nlhdr::{NlHdr,NlAttrHdr};
+use nl::genlhdr::{GenlHdr};
 use nl::ffi::{NlFamily,NlType,NlFlags,NlaType,GenlType,GenlCmds,AttrTypeMcast};
 use nl::err::{NlError};
 
-const ACPI_FAMILY_NAME: &'static str = "acpi_event\0";
+const ACPI_FAMILY_NAME: &'static str = "acpi_event";
 
 pub fn acpi_listen() -> Result<(), NlError> {
     let id = resolve_acpi_family_id()?;
@@ -17,8 +17,8 @@ pub fn acpi_listen() -> Result<(), NlError> {
 
 pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
     let mut s = NlSocket::new(NlFamily::NlGeneric)?;
-    let attrs = vec![NlAttrHdr::new_binary_payload(None, NlaType::AttrFamilyName,
-                     ACPI_FAMILY_NAME.as_bytes().to_vec())?];
+    let attrs = vec![NlAttrHdr::new_str_payload(None, NlaType::AttrFamilyName,
+                     ACPI_FAMILY_NAME)];
     let genl_hdr = GenlHdr::new(GenlCmds::CmdGetfamily, 2, attrs)?;
     let msg = NlHdr::<GenlType, GenlHdr>::new(None, GenlType::IdCtrl,
                                               vec![NlFlags::NlRequest, NlFlags::NlAck],
