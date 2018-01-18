@@ -1,3 +1,5 @@
+use acpi::AcpiEvent;
+
 use nl::socket::NlSocket;
 use nl::nlhdr::{NlHdr,NlAttrHdr};
 use nl::genlhdr::{GenlHdr};
@@ -11,7 +13,9 @@ pub fn acpi_listen() -> Result<(), NlError> {
     let mut s = NlSocket::connect(NlFamily::NlGeneric, None, Some(1 << (id - 1)))?;
     loop {
         let msg = s.recvmsg::<NlType, GenlHdr>(Some(4096), 0)?;
-        println!("{:?}", msg);
+        let mut handle = msg.nl_payload.get_attr_handle::<u16>();
+        let acpi_event = handle.get_payload_as::<AcpiEvent>(1);
+        println!("{:?}", acpi_event);
     }
 }
 

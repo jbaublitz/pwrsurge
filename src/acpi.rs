@@ -1,11 +1,56 @@
+use std::mem;
+use std::fmt::{self,Debug};
+
 use nl::{Nl,NlSerState,NlDeState};
 use nl::err::{SerError,DeError};
+
+#[derive(Clone)]
+pub enum AcpiGenlAttr {
+    Unspec = 0,
+    Event = 1,
+    UnrecognizedVariant,
+}
+
+impl Default for AcpiGenlAttr {
+    fn default() -> Self {
+        AcpiGenlAttr::Unspec
+    }
+}
+
+impl Nl for AcpiGenlAttr {
+    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+        let mut val = self.clone() as u16;
+        val.serialize(state)
+    }
+
+    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
+        let val = u16::deserialize(state)?;
+        Ok(match val {
+            i if i == 0 => AcpiGenlAttr::Unspec,
+            i if i == 1 => AcpiGenlAttr::Event,
+            _ => AcpiGenlAttr::UnrecognizedVariant,
+        })
+    }
+
+    fn size(&self) -> usize {
+        mem::size_of::<u16>()
+    }
+}
 
 pub struct AcpiEvent {
     device_class: Vec<u8>,
     bus_id: Vec<u8>,
     event_type: u32,
     event_data: u32,
+}
+
+impl Debug for AcpiEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, r#"AcpiEvent {{ device_class: {}, bus_id: {}, event_type: {}, event_data: {} }}"#,
+               String::from_utf8_lossy(self.device_class.as_slice()),
+               String::from_utf8_lossy(self.bus_id.as_slice()),
+               self.event_type, self.event_data)
+    }
 }
 
 impl Default for AcpiEvent {
