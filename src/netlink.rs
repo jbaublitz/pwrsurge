@@ -25,7 +25,7 @@ pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
                                               None, None, genl_hdr);
     s.sendmsg(msg, 0)?;
     let resp = s.recvmsg::<NlType, GenlHdr>(Some(4096), 0)?;
-    let mut resp_handle = resp.nl_pl.get_attr_handle::<NlaType>();
+    let mut resp_handle = resp.nl_payload.get_attr_handle::<NlaType>();
     let mut mcastgroups = resp_handle.get_nested_attributes::<u16>(NlaType::AttrMcastGroups)?;
     let mut mcastgroup = mcastgroups.get_nested_attributes::<AttrTypeMcast>(1u16)?;
     let id = mcastgroup.get_payload_as::<u32>(AttrTypeMcast::GrpId)?;
