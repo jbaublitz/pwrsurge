@@ -37,6 +37,7 @@ mod test {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_resolve_acpi_family_id() {
         let id = resolve_acpi_family_id().unwrap();
         assert_eq!(id, 8)
