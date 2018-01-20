@@ -1,10 +1,10 @@
 use acpi::AcpiEvent;
 
-use nl::socket::NlSocket;
-use nl::nlhdr::{NlHdr,NlAttrHdr};
-use nl::genlhdr::{GenlHdr};
-use nl::ffi::{NlFamily,Nlmsg,NlFlags,CtrlAttr,GenlId,CtrlCmd,CtrlAttrMcastGrp};
-use nl::err::{NlError};
+use neli::socket::NlSocket;
+use neli::nlhdr::{NlHdr,NlAttrHdr};
+use neli::genlhdr::{GenlHdr};
+use neli::ffi::{NlFamily,Nlmsg,NlFlags,CtrlAttr,GenlId,CtrlCmd,CtrlAttrMcastGrp};
+use neli::err::{NlError};
 
 const ACPI_FAMILY_NAME: &'static str = "acpi_event";
 

@@ -1,8 +1,8 @@
 use std::mem;
 use std::fmt::{self,Debug};
 
-use nl::{Nl,NlSerState,NlDeState};
-use nl::err::{SerError,DeError};
+use neli::{Nl,NlSerState,NlDeState};
+use neli::err::{SerError,DeError};
 
 #[derive(Clone)]
 pub enum AcpiGenlAttr {

@@ -6,7 +6,7 @@
 
 #![deny(missing_docs)]
 
-extern crate nl;
+extern crate neli;
 
 mod netlink;
 mod acpi;
