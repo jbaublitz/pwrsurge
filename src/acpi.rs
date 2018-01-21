@@ -38,10 +38,10 @@ impl Nl for AcpiGenlAttr {
 }
 
 pub struct AcpiEvent {
-    device_class: Vec<u8>,
-    bus_id: Vec<u8>,
-    event_type: u32,
-    event_data: u32,
+    pub device_class: Vec<u8>,
+    pub bus_id: Vec<u8>,
+    pub event_type: u32,
+    pub event_data: u32,
 }
 
 impl Debug for AcpiEvent {

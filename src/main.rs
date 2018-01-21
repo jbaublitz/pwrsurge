@@ -7,13 +7,38 @@
 #![deny(missing_docs)]
 
 extern crate neli;
+extern crate libloading;
 
 mod netlink;
 mod acpi;
+mod event;
 
-use netlink::acpi_listen;
+use std::process;
+
+use neli::socket::NlSocket;
+use neli::ffi::NlFamily;
 
 /// Main function
 pub fn main() {
-    acpi_listen().unwrap();
+    let id = match netlink::resolve_acpi_family_id() {
+        Ok(id) => id,
+        Err(e) => {
+            println!("{}", e);
+            process::exit(1);
+        }
+    };
+    let mut s = match NlSocket::connect(NlFamily::Generic, None, Some(1 << (id - 1))) {
+        Ok(id) => id,
+        Err(e) => {
+            println!("{}", e);
+            process::exit(1);
+        }
+    };
+    match event::event_loop(&mut s) {
+        Ok(id) => id,
+        Err(e) => {
+            println!("{}", e);
+            process::exit(1);
+        }
+    };
 }
