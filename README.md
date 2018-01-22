@@ -4,4 +4,4 @@
 A power manager written in Rust using `nl`.
 
 # Documentation
-Docs live [here](https://docs.rs/crate/0.1.1/pwrsurge)
+Docs live [here](https://docs.rs/crate/pwrsurge/0.1.1)

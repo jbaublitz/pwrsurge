@@ -5,11 +5,3 @@ rust:
 script:
   - cargo test
   - cargo doc
-
-deploy:
-  local_dir: ./target/doc/
-  provider: pages
-  skip_cleanup: true
-  github_token: $GITHUB_TOKEN
-  on:
-    branch: master
