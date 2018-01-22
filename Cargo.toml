@@ -1,14 +1,13 @@
 [package]
 name = "pwrsurge"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Dynamic, minimalistic power manager written in Rust"
 license = "BSD-3-Clause"
 repository = "https://github.com/jbaublitz/pwrsurge"
 keywords = ["power", "manager", "acpi", "multithreaded"]
 include = [
-    "**/*.rs",
-    "**/*.c",
+    "src/*.rs",
     "Cargo.toml",
     "LICENSE",
 ]
