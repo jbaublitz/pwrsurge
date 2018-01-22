@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/jbaublitz/surge.svg?branch=master)](https://travis-ci.org/jbaublitz/surge)
+[![Build Status](https://travis-ci.org/jbaublitz/pwrsurge.svg?branch=master)](https://travis-ci.org/jbaublitz/pwrsurge)
 
 # pwrsurge
 A power manager written in Rust using `nl`.
