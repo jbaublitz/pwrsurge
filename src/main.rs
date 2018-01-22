@@ -7,7 +7,7 @@
 //! to execute callbacks.
 //!
 //! ### Hrm?
-//! For examples of prototypes of callbacks in Rust and C, see the examples directory. The
+//! For examples of prototypes of callbacks in Rust and C, see the `example_libs/` directory. The
 //! callbacks _must_ have the function prototypes in the examples specified for both languages
 //! to have any guarantee of working. Otherwise, you are in uncharted waters and the behavior is
 //! undefined. The `device_class` field of ACPI events should be the name of the function
