@@ -1,87 +1,64 @@
-use std::env;
 use std::error::Error;
-use std::fmt;
-use std::io;
-use std::str;
+use std::fs::File;
+use std::io::Read;
+use std::mem;
+use std::os::unix::io::AsRawFd;
 use std::thread;
 
-use libloading::{self,Library,Symbol};
+#[allow(unused_imports)]
+use libloading::{Library,Symbol};
+use mio::{Events,Poll,PollOpt,Ready,Token};
+use mio::unix::EventedFd;
 use neli::socket::NlSocket;
+use neli::ffi::NlFamily;
 
-use acpi::AcpiEvent;
+use acpi;
+use evdev;
 use netlink;
 
-macro_rules! event_err {
-    ( $err:ident, $( $from_err:path ),* ) => {
-        #[derive(Debug)]
-        pub struct $err(String);
+pub struct Eventer(Poll, NlSocket, Vec<File>);
 
-        impl fmt::Display for $err {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{}", self.description())
-            }
+impl Eventer {
+    pub fn new() -> Result<Self, Box<Error>> {
+        let netlink_id = netlink::resolve_acpi_family_id()?;
+        let s = NlSocket::connect(NlFamily::Generic, None, Some(1 << (netlink_id - 1)))?;
+        let event_files = evdev::evdev_files()?;
+        Ok(Eventer(Poll::new()?, s, event_files))
+    }
+
+    pub fn setup_event_loop(&mut self) -> Result<(), Box<Error>> {
+        self.0.register(&EventedFd(&self.1.as_raw_fd()), Token(0),
+                        Ready::readable(), PollOpt::level())?;
+        for (i, file) in self.2.iter().enumerate() {
+            self.0.register(&EventedFd(&file.as_raw_fd()),
+                            Token(i + 1), Ready::readable(), PollOpt::level())?;
         }
-
-        impl Error for $err {
-            fn description(&self) -> &str {
-                self.0.as_str()
-            }
-        }
-
-        $(
-            impl From<$from_err> for $err {
-                fn from(v: $from_err) -> Self {
-                    $err(v.description().to_string())
-                }
-            }
-        )*
+        Ok(())
     }
-}
 
-event_err!(EventError, io::Error);
-
-pub fn event_loop(s: &mut NlSocket) -> Result<(), EventError> {
-    while let Ok(event) = netlink::acpi_listen(s) {
-        spawn_event_thread(event);
-    }
-    Ok(())
-}
-
-fn spawn_event_thread<'a>(event: AcpiEvent) {
-    thread_local! {
-        static LIB: Result<Library, io::Error> = Library::new(env::args().nth(1)
-                                                              .unwrap_or(
-                                                                  "/etc/pwrsurge/libevents.so".to_string()
-                                                              ));
-    }
-    thread::spawn(move || {
-        type FuncSym<'sym> = Symbol<'sym, unsafe extern fn(*const u8, u32, u32) -> i32>;
-        LIB.with(|lib| match *lib {
-            Ok(ref l) => {
-                let mut event_device_class = event.device_class.clone();
-                event_device_class.retain(|elem| *elem != 0);
-                let sym: libloading::Result<FuncSym> = unsafe { l.get(&event_device_class) };
-                if let Ok(s) = sym {
-                    let i = unsafe {
-                        s((&event.bus_id).as_ptr(), event.event_type, event.event_data)
-                    };
-                    if i < 0 {
-                        match str::from_utf8(&event_device_class) {
-                            Ok(string) => {
-                                println!("Thread for event {} exited unsuccessfully",
-                                    string);
-                            },
-                            Err(e) => {
-                                println!("Event name could not be turned into string: {}", e);
-                            }
-                        };
+    pub fn start_event_loop(&mut self) -> Result<(), Box<Error>> {
+        let mut events = Events::with_capacity(16);
+        while let Ok(_) = self.0.poll(&mut events, None) {
+            for event in events.iter() {
+                if event.token() == Token(0) && event.readiness().is_readable() {
+                    let acpi_event = netlink::acpi_listen(&mut self.1)?;
+                    spawn_nl_acpi_thread(acpi_event)?;
+                } else if event.readiness().is_readable() {
+                    let index = event.token().0;
+                    if let Some(mut f) = self.2.get(index) {
+                        let mut buf = vec![0; mem::size_of::<evdev::InputEvent>()];
+                        f.read_exact(&mut buf)?;
                     }
-                } else if let Err(e) = sym {
-                    println!("Failed to get symbol: {}", e);
-                    println!("event: {:?}", event);
                 }
-            },
-            Err(ref e) => { println!("Error loading library: {}", e); },
-        });
+            }
+        }
+        Ok(())
+    }
+}
+
+fn spawn_nl_acpi_thread(event: acpi::AcpiEvent) -> Result<(), Box<Error>> {
+    thread::spawn(move || {
+
     });
+    Ok(())
 }

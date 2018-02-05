@@ -13,7 +13,7 @@ const ACPI_FAMILY_NAME: &'static str = "acpi_event";
 pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
     let mut s = NlSocket::new(NlFamily::Generic)?;
     let attrs = vec![NlAttrHdr::new_str_payload(None, CtrlAttr::FamilyName,
-                     ACPI_FAMILY_NAME)];
+                     ACPI_FAMILY_NAME)?];
     let genl_hdr = GenlHdr::new(CtrlCmd::Getfamily, 2, attrs)?;
     let msg = NlHdr::<GenlId, GenlHdr>::new(None, GenlId::Ctrl,
                                               vec![NlFlags::Request, NlFlags::Ack],

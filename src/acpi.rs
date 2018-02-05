@@ -38,8 +38,8 @@ impl Nl for AcpiGenlAttr {
 }
 
 pub struct AcpiEvent {
-    pub device_class: Vec<u8>,
-    pub bus_id: Vec<u8>,
+    pub device_class: String,
+    pub bus_id: String,
     pub event_type: u32,
     pub event_data: u32,
 }
@@ -47,8 +47,8 @@ pub struct AcpiEvent {
 impl Debug for AcpiEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, r#"AcpiEvent {{ device_class: {}, bus_id: {}, event_type: {}, event_data: {} }}"#,
-               String::from_utf8_lossy(self.device_class.as_slice()),
-               String::from_utf8_lossy(self.bus_id.as_slice()),
+               self.device_class,
+               self.bus_id,
                self.event_type, self.event_data)
     }
 }
@@ -56,8 +56,8 @@ impl Debug for AcpiEvent {
 impl Default for AcpiEvent {
     fn default() -> Self {
         AcpiEvent {
-            device_class: Vec::new(),
-            bus_id: Vec::new(),
+            device_class: String::new(),
+            bus_id: String::new(),
             event_type: 0,
             event_data: 0,
         }
@@ -66,7 +66,9 @@ impl Default for AcpiEvent {
 
 impl Nl for AcpiEvent {
     fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
+        state.set_usize(20);
         self.device_class.serialize(state)?;
+        state.set_usize(15);
         self.bus_id.serialize(state)?;
         self.event_type.serialize(state)?;
         self.event_data.serialize(state)?;
@@ -76,9 +78,9 @@ impl Nl for AcpiEvent {
     fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
         let mut acpi_event = AcpiEvent::default();
         state.set_usize(20);
-        acpi_event.device_class = Vec::<u8>::deserialize(state)?;
+        acpi_event.device_class = String::deserialize(state)?;
         state.set_usize(15);
-        acpi_event.bus_id = Vec::<u8>::deserialize(state)?;
+        acpi_event.bus_id = String::deserialize(state)?;
         acpi_event.event_type = u32::deserialize(state)?;
         acpi_event.event_data = u32::deserialize(state)?;
         Ok(acpi_event)
@@ -101,14 +103,15 @@ mod test {
     #[test]
     fn test_acpi_event_serialize() {
         let mut acpi_event_serialized = Cursor::new(Vec::new());
-        acpi_event_serialized.write(&vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
-        acpi_event_serialized.write(&vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4]).unwrap();
+        acpi_event_serialized.write(&vec![65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0]).unwrap();
+        acpi_event_serialized.write(&vec![65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
         acpi_event_serialized.write_u32::<NativeEndian>(5).unwrap();
         acpi_event_serialized.write_u32::<NativeEndian>(7).unwrap();
 
         let mut acpi_event = AcpiEvent {
-            device_class: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            bus_id: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4],
+            device_class: "AAAAAA".to_string(),
+            bus_id: "AAAAA".to_string(),
             event_type: 5,
             event_data: 7,
         };

@@ -38,39 +38,42 @@
 
 #![deny(missing_docs)]
 
-extern crate neli;
+extern crate getopts;
+extern crate libc;
 extern crate libloading;
+extern crate mio;
+extern crate neli;
 
 mod netlink;
 mod acpi;
 mod event;
+mod args;
+mod evdev;
 
 use std::process;
 
-use neli::socket::NlSocket;
-use neli::ffi::NlFamily;
-
 /// Main function
 pub fn main() {
-    let id = match netlink::resolve_acpi_family_id() {
-        Ok(id) => id,
+    let args = match args::parse_args() {
+        Ok(a) => a,
         Err(e) => {
             println!("{}", e);
             process::exit(1);
         }
     };
-    let mut s = match NlSocket::connect(NlFamily::Generic, None, Some(1 << (id - 1))) {
-        Ok(id) => id,
+    let mut poll = match event::Eventer::new() {
+        Ok(poll) => poll,
         Err(e) => {
             println!("{}", e);
             process::exit(1);
         }
     };
-    match event::event_loop(&mut s) {
-        Ok(id) => id,
-        Err(e) => {
-            println!("{}", e);
-            process::exit(1);
-        }
-    };
+    if let Err(e) = poll.setup_event_loop() {
+        println!("{}", e);
+        process::exit(1);
+    }
+    if let Err(e) = poll.start_event_loop() {
+        println!("{}", e);
+        process::exit(1);
+    }
 }
