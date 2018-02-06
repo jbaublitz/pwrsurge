@@ -72,7 +72,7 @@ pub fn main() {
         println!("{}", e);
         process::exit(1);
     }
-    if let Err(e) = poll.start_event_loop() {
+    if let Err(e) = poll.start_event_loop(&args.lib_path) {
         println!("{}", e);
         process::exit(1);
     }

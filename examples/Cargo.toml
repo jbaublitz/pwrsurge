@@ -1,0 +1,15 @@
+[package]
+name = "libevents"
+version = "0.1.0"
+authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
+description = "Example handler"
+license = "BSD-3-Clause"
+repository = "https://github.com/jbaublitz/pwrsurge"
+
+[lib]
+name = "events"
+path = "suspend.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+libc = "0.2"

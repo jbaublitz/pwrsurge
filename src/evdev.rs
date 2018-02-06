@@ -5,6 +5,7 @@ use std::io::{self,Read};
 
 use libc;
 
+#[derive(Debug)]
 struct EvdevEvents(HashMap<String, String>);
 
 impl EvdevEvents {
@@ -37,7 +38,9 @@ impl EvdevEvents {
         let mut file_contents = String::new();
         file.take(65536).read_to_string(&mut file_contents)?;
         for file_split in file_contents.split("\n\n") {
-            self.parse_file_chunk(file_split.to_string());
+            if file_split.trim() != "" {
+                self.parse_file_chunk(file_split.to_string());
+            }
         }
         Ok(())
     }
@@ -63,6 +66,7 @@ pub struct InputEvent {
 
 pub fn evdev_files() -> Result<Vec<File>, Box<Error>> {
     let events = EvdevEvents::parse_events()?;
+    println!("{:?}", events);
     let mut event_files = Vec::new();
     for (event, desc) in events.iter() {
         println!("Opening {} ({}) for reading...", event, desc);

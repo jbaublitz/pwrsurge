@@ -1,6 +1,9 @@
+extern crate libc;
+
 use std::error::Error;
 use std::fs::{self,File};
 use std::io::{self,Read};
+use std::os::unix::process::CommandExt;
 use std::process::Command;
 use std::str::from_utf8;
 
@@ -25,10 +28,12 @@ pub struct AcpiEvent {
     pub event_data: u32,
 }
 
-#[derive(Debug)]
 #[repr(C)]
-pub struct ACState {
-    is_unplugged: u8,
+pub struct InputEvent {
+    timestamp: libc::timeval,
+    event_type: u16,
+    event_code: u16,
+    event_value: i32,
 }
 
 fn is_online() -> Result<bool, io::Error> {
@@ -103,6 +108,22 @@ fn check_all_batteries(bat_dir_str: &String, online: bool) -> Result<bool, Box<E
     Ok(all_bats_below)
 }
 
+fn suspend_and_lock() -> Result<(), Box<Error>> {
+    Command::new("scrot").arg("/tmp/ss.png").uid(1000).gid(1000).status().and_then(|_| {
+        Command::new("convert").args(&["/tmp/ss.png", "-blur", "0x5", "/tmp/ssb.png"])
+            .uid(1000).gid(1000).status()
+    }).and_then(|_| {
+        Command::new("i3lock").args(&["-i", "/tmp/ssb.png"]).status()
+    }).and_then(|_| {
+        Command::new("rm").args(&["-f", "/tmp/ss.png", "/tmp/ssb.png"])
+            .uid(1000).gid(1000).status()
+    }).and_then(|_| {
+        Command::new("sudo").arg("pm-suspend")
+            .uid(1000).gid(1000).status()
+    })?;
+    Ok(())
+}
+
 fn battery() -> i32 {
     let online = try_int!(is_online());
 
@@ -127,14 +148,14 @@ fn battery() -> i32 {
 
     println!("ALL BATTERIES BELOW THRESHOLD: {}", all_bats_below);
     if all_bats_below {
-        try_int!(Command::new("sudo").arg("pm-suspend").spawn());
+        try_int!(suspend_and_lock());
     }
 
     0
 }
 
 #[no_mangle]
-pub fn handler(event: *const AcpiEvent) -> i32 {
+pub fn acpi_handler(event: *const AcpiEvent) -> i32 {
     let event_ref = unsafe { &*event };
     let pos = event_ref.device_class.iter().position(|b| *b == 0);
     let device_class_clone = event_ref.device_class.clone();
@@ -153,5 +174,15 @@ pub fn handler(event: *const AcpiEvent) -> i32 {
     }
 }
 
+#[no_mangle]
+pub fn evdev_handler(event: *const InputEvent) -> i32 {
+    let event_ref = unsafe { &*event };
+    if event_ref.event_type == 0x5 && event_ref.event_code == 0x0 && event_ref.event_value != 0 {
+        try_int!(suspend_and_lock());
+    }
+    0
+}
+
+/// Only for `examples` directory to compile on `cargo test`
 pub fn main() {
 }
