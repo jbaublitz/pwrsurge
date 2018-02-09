@@ -1,8 +1,8 @@
 extern crate libc;
 
 use std::error::Error;
-use std::fs::{self,File};
-use std::io::{self,Read};
+use std::fs::{self,File,OpenOptions};
+use std::io::{self,Read,Write};
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 use std::str::from_utf8;
@@ -36,7 +36,7 @@ pub struct InputEvent {
     event_value: i32,
 }
 
-fn is_online() -> Result<bool, io::Error> {
+fn ac_is_online() -> Result<bool, io::Error> {
     let readdir = fs::read_dir("/sys/bus/acpi/drivers/ac/")?;
     let mut online = false;
     for entry in readdir {
@@ -125,7 +125,7 @@ fn suspend_and_lock() -> Result<(), Box<Error>> {
 }
 
 fn battery() -> i32 {
-    let online = try_int!(is_online());
+    let online = try_int!(ac_is_online());
 
     let mut all_bats_below = true;
     let readdir = try_int!(fs::read_dir("/sys/bus/acpi/drivers/battery"));
@@ -154,6 +154,52 @@ fn battery() -> i32 {
     0
 }
 
+fn assert_cpu_state(is_online: bool, path: &str) -> Result<(), Box<Error>> {
+    let mut rw_file = OpenOptions::new().read(true).write(true).open(path)?;
+    let mut state = String::new();
+    rw_file.read_to_string(&mut state)?;
+    let state_len = state.len();
+    state.truncate(state_len - 1);
+    let needs_state_change = ((state.as_str() != "powersave") && !is_online)
+        || ((state.as_str() != "performance") && is_online);
+    if needs_state_change {
+        if is_online {
+            rw_file.write(b"performance")?;
+        } else {
+            rw_file.write(b"powersave")?;
+        }
+    }
+    Ok(())
+}
+
+fn assert_all_cpu_states(is_online: bool) -> Result<(), Box<Error>> {
+    let readdir = fs::read_dir("/sys/bus/cpu/devices/")?;
+    for direntry in readdir {
+        let cpu_device = direntry?;
+        let is_symlink = cpu_device.file_type()?.is_symlink();
+        if is_symlink {
+            let direntry_string = match cpu_device.file_name().into_string() {
+                Ok(string) => string,
+                Err(_) => {
+                    println!("Failed to convert to String type");
+                    return Err(Box::new(io::Error::from(io::ErrorKind::InvalidData)));
+                }
+            };
+            let cpu_path = format!("/sys/bus/cpu/devices/{}/cpufreq/scaling_governor",
+                                   direntry_string);
+            println!("Asserting CPU state for {}", cpu_path);
+            assert_cpu_state(is_online, cpu_path.as_str())?;
+        }
+    }
+    Ok(())
+}
+
+fn ac_adapter() -> i32 {
+    let is_online = try_int!(ac_is_online());
+    try_int!(assert_all_cpu_states(is_online));
+    0
+}
+
 #[no_mangle]
 pub fn acpi_handler(event: *const AcpiEvent) -> i32 {
     let event_ref = unsafe { &*event };
@@ -170,6 +216,7 @@ pub fn acpi_handler(event: *const AcpiEvent) -> i32 {
 
     match device_class_str {
         "battery" => battery(),
+        "ac_adapter" => ac_adapter(),
         _ => 0,
     }
 }
