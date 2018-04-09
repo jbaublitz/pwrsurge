@@ -1,5 +1,6 @@
 extern crate libc;
 
+use std::env;
 use std::error::Error;
 use std::fs::{self,File,OpenOptions};
 use std::io::{self,Read,Write};
@@ -109,17 +110,17 @@ fn check_all_batteries(bat_dir_str: &String, online: bool) -> Result<bool, Box<E
 }
 
 fn suspend_and_lock() -> Result<(), Box<Error>> {
-    Command::new("scrot").arg("/tmp/ss.png").uid(1000).gid(1000).status().and_then(|_| {
+    let uid = env::var("SUDO_UID")?.parse::<u32>()?;
+    Command::new("scrot").arg("/tmp/ss.png").uid(uid).gid(uid).status().and_then(|_| {
         Command::new("convert").args(&["/tmp/ss.png", "-blur", "0x5", "/tmp/ssb.png"])
-            .uid(1000).gid(1000).status()
+            .uid(uid).gid(uid).status()
     }).and_then(|_| {
         Command::new("i3lock").args(&["-i", "/tmp/ssb.png"]).status()
     }).and_then(|_| {
         Command::new("rm").args(&["-f", "/tmp/ss.png", "/tmp/ssb.png"])
-            .uid(1000).gid(1000).status()
+            .uid(uid).gid(uid).status()
     }).and_then(|_| {
-        Command::new("sudo").arg("pm-suspend")
-            .uid(1000).gid(1000).status()
+        Command::new("pm-suspend").status()
     })?;
     Ok(())
 }

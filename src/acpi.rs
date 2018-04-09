@@ -1,7 +1,6 @@
 use std::mem;
-use std::fmt::{self,Debug};
 
-use neli::{Nl,NlSerState,NlDeState};
+use neli::{Nl,MemRead,MemWrite};
 use neli::err::{SerError,DeError};
 
 #[derive(Clone)]
@@ -11,20 +10,17 @@ pub enum AcpiGenlAttr {
     UnrecognizedVariant,
 }
 
-impl Default for AcpiGenlAttr {
-    fn default() -> Self {
-        AcpiGenlAttr::Unspec
-    }
-}
-
 impl Nl for AcpiGenlAttr {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        let mut val = self.clone() as u16;
-        val.serialize(state)
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        let val = self.clone() as u16;
+        val.serialize(mem)
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let val = u16::deserialize(state)?;
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        let val = u16::deserialize(mem)?;
         Ok(match val {
             i if i == 0 => AcpiGenlAttr::Unspec,
             i if i == 1 => AcpiGenlAttr::Event,
@@ -37,6 +33,7 @@ impl Nl for AcpiGenlAttr {
     }
 }
 
+#[derive(Debug)]
 pub struct AcpiEvent {
     pub device_class: String,
     pub bus_id: String,
@@ -44,46 +41,25 @@ pub struct AcpiEvent {
     pub event_data: u32,
 }
 
-impl Debug for AcpiEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"AcpiEvent {{ device_class: {}, bus_id: {}, event_type: {}, event_data: {} }}"#,
-               self.device_class,
-               self.bus_id,
-               self.event_type, self.event_data)
-    }
-}
-
-impl Default for AcpiEvent {
-    fn default() -> Self {
-        AcpiEvent {
-            device_class: String::new(),
-            bus_id: String::new(),
-            event_type: 0,
-            event_data: 0,
-        }
-    }
-}
-
 impl Nl for AcpiEvent {
-    fn serialize(&mut self, state: &mut NlSerState) -> Result<(), SerError> {
-        state.set_usize(20);
-        self.device_class.serialize(state)?;
-        state.set_usize(15);
-        self.bus_id.serialize(state)?;
-        self.event_type.serialize(state)?;
-        self.event_data.serialize(state)?;
+    type SerIn = ();
+    type DeIn = ();
+
+    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+        self.device_class.serialize_with(mem, 20)?;
+        self.bus_id.serialize_with(mem, 15)?;
+        self.event_type.serialize(mem)?;
+        self.event_data.serialize(mem)?;
         Ok(())
     }
 
-    fn deserialize(state: &mut NlDeState) -> Result<Self, DeError> {
-        let mut acpi_event = AcpiEvent::default();
-        state.set_usize(20);
-        acpi_event.device_class = String::deserialize(state)?;
-        state.set_usize(15);
-        acpi_event.bus_id = String::deserialize(state)?;
-        acpi_event.event_type = u32::deserialize(state)?;
-        acpi_event.event_data = u32::deserialize(state)?;
-        Ok(acpi_event)
+    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+        Ok(AcpiEvent {
+            device_class: String::deserialize_with(mem, 20)?,
+            bus_id: String::deserialize_with(mem, 15)?,
+            event_type: u32::deserialize(mem)?,
+            event_data: u32::deserialize(mem)?,
+        })
     }
 
     fn size(&self) -> usize {
@@ -115,9 +91,9 @@ mod test {
             event_type: 5,
             event_data: 7,
         };
-        let mut state = NlSerState::new();
+        let mut state = MemWrite::new_vec(None);
         acpi_event.serialize(&mut state).unwrap();
 
-        assert_eq!(state.into_inner(), acpi_event_serialized.into_inner());
+        assert_eq!(state.as_slice(), acpi_event_serialized.get_ref().as_slice());
     }
 }

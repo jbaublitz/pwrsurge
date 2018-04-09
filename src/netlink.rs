@@ -2,24 +2,31 @@ use std::str;
 
 use acpi::AcpiEvent;
 
+use neli::{Nl,MemWrite};
 use neli::socket::NlSocket;
 use neli::nlhdr::{NlHdr,NlAttrHdr};
 use neli::genlhdr::{GenlHdr};
-use neli::ffi::{NlFamily,Nlmsg,NlFlags,CtrlAttr,GenlId,CtrlCmd,CtrlAttrMcastGrp};
+use neli::ffi::{NlFamily,NlmF,CtrlAttr,GenlId,CtrlCmd,CtrlAttrMcastGrp};
 use neli::err::{NlError};
 
 const ACPI_FAMILY_NAME: &'static str = "acpi_event";
 
 pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
-    let mut s = NlSocket::new(NlFamily::Generic)?;
+    let mut s = NlSocket::<GenlId, GenlHdr>::new(NlFamily::Generic)?;
     let attrs = vec![NlAttrHdr::new_str_payload(None, CtrlAttr::FamilyName,
                      ACPI_FAMILY_NAME)?];
     let genl_hdr = GenlHdr::new(CtrlCmd::Getfamily, 2, attrs)?;
+    let mut mem = MemWrite::new_vec(Some(4096));
     let msg = NlHdr::<GenlId, GenlHdr>::new(None, GenlId::Ctrl,
-                                              vec![NlFlags::Request, NlFlags::Ack],
-                                              None, None, genl_hdr);
-    s.sendmsg(msg, 0)?;
-    let resp = s.recvmsg::<Nlmsg, GenlHdr>(Some(4096), 0)?;
+                                            vec![NlmF::Request, NlmF::Ack],
+                                            None, None, genl_hdr);
+    msg.serialize(&mut mem)?;
+    let mut mem_read = mem.into();
+    s.send(mem_read, 0)?;
+
+    let mem_resp = MemWrite::new_vec(Some(4096));
+    let mut mem_read_resp = s.recv(mem_resp, 0)?;
+    let resp = NlHdr::<GenlId, GenlHdr>::deserialize(&mut mem_read_resp)?;
     let mut resp_handle = resp.nl_payload.get_attr_handle::<CtrlAttr>();
     let mut mcastgroups = resp_handle.get_nested_attributes::<u16>(CtrlAttr::McastGroups)?;
     let mut mcastgroup = mcastgroups.get_nested_attributes::<CtrlAttrMcastGrp>(1u16)?;
@@ -27,8 +34,7 @@ pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
     Ok(id)
 }
 
-pub fn acpi_listen(s: &mut NlSocket) -> Result<AcpiEvent, NlError> {
-    let msg = s.recvmsg::<Nlmsg, GenlHdr>(Some(4096), 0)?;
+pub fn acpi_event(msg: NlHdr<GenlId, GenlHdr>) -> Result<AcpiEvent, NlError> {
     let mut attr_handle = msg.nl_payload.get_attr_handle::<u16>();
     Ok(attr_handle.get_payload_as::<AcpiEvent>(1)?)
 }

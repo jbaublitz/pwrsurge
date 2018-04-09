@@ -2,8 +2,15 @@ use std::collections::{self,HashMap};
 use std::error::Error;
 use std::fs::File;
 use std::io::{self,Read};
+use std::mem;
+use std::os::unix::io::AsRawFd;
+use std::slice;
 
 use libc;
+use mio::{self,Evented};
+use mio::unix::EventedFd;
+use tokio::prelude::{Async,Stream};
+use tokio::reactor::PollEvented2;
 
 #[derive(Debug)]
 struct EvdevEvents(HashMap<String, String>);
@@ -58,19 +65,81 @@ impl EvdevEvents {
 
 #[repr(C)]
 pub struct InputEvent {
-    timestamp: libc::timeval,
-    event_type: u16,
-    event_code: u16,
-    event_value: i32,
+    pub timestamp: libc::timeval,
+    pub event_type: u16,
+    pub event_code: u16,
+    pub event_value: i32,
 }
 
-pub fn evdev_files() -> Result<Vec<File>, Box<Error>> {
+impl Default for InputEvent {
+    fn default() -> Self {
+        InputEvent {
+            timestamp: libc::timeval { tv_sec: 0, tv_usec: 0 },
+            event_type: 0,
+            event_code: 0,
+            event_value: 0,
+        }
+    }
+}
+
+impl AsMut<[u8]> for InputEvent {
+    fn as_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self as *mut InputEvent as *mut u8,
+                                           mem::size_of::<InputEvent>()) }
+    }
+}
+
+pub struct EventedFile(File);
+
+impl EventedFile {
+    fn open(path: &str) -> io::Result<Self> {
+        Ok(EventedFile(File::open(path)?))
+    }
+}
+
+impl Stream for EventedFile {
+    type Item = InputEvent;
+    type Error = Box<Error>;
+
+    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+        let mut input = InputEvent::default();
+        let bytes_read = self.read(input.as_mut())?;
+        if bytes_read == 0 {
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(Some(input)))
+        }
+    }
+}
+
+impl Evented for EventedFile {
+    fn register(&self, poll: &mio::Poll, token: mio::Token, ready: mio::Ready, opts: mio::PollOpt)
+                -> io::Result<()> {
+        poll.register(&EventedFd(&self.0.as_raw_fd()), token, ready, opts)
+    }
+
+    fn reregister(&self, poll: &mio::Poll, token: mio::Token, ready: mio::Ready, opts: mio::PollOpt)
+                  -> io::Result<()> {
+        poll.reregister(&EventedFd(&self.0.as_raw_fd()), token, ready, opts)
+    }
+
+    fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
+        poll.deregister(&EventedFd(&self.0.as_raw_fd()))
+    }
+}
+
+impl Read for EventedFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+pub fn evdev_files<'a>() -> Result<Vec<EventedFile>, Box<Error>> {
     let events = EvdevEvents::parse_events()?;
-    println!("{:?}", events);
     let mut event_files = Vec::new();
     for (event, desc) in events.iter() {
         println!("Opening {} ({}) for reading...", event, desc);
-        let file = File::open(format!("/dev/input/{}", event).as_str())?;
+        let file = EventedFile::open(format!("/dev/input/{}", event).as_str())?;
         event_files.push(file);
     }
     Ok(event_files)

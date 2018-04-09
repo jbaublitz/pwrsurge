@@ -38,17 +38,23 @@
 
 #![deny(missing_docs)]
 
+extern crate futures;
+extern crate futures_timer;
 extern crate getopts;
+extern crate ini;
 extern crate libc;
 extern crate libloading;
 extern crate mio;
 extern crate neli;
+extern crate tokio;
 
-mod netlink;
 mod acpi;
-mod event;
 mod args;
+mod event;
 mod evdev;
+mod filter;
+mod netlink;
+mod timer;
 
 use std::process;
 
@@ -61,19 +67,12 @@ pub fn main() {
             process::exit(1);
         }
     };
-    let mut poll = match event::Eventer::new() {
-        Ok(poll) => poll,
+
+    match event::new_event_loop(args.lib_path.as_str(), args.config_file.acpi, args.config_file.evdev) {
+        Ok(a) => a,
         Err(e) => {
             println!("{}", e);
             process::exit(1);
         }
-    };
-    if let Err(e) = poll.setup_event_loop() {
-        println!("{}", e);
-        process::exit(1);
-    }
-    if let Err(e) = poll.start_event_loop(&args.lib_path) {
-        println!("{}", e);
-        process::exit(1);
     }
 }
