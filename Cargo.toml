@@ -16,11 +16,10 @@ include = [
 libc = "0.2"
 libloading = "0.5"
 mio = "0.6.2"
-tokio = "*"
+tokio = "0.1"
 getopts = "0.2"
 rust-ini = "0.10"
-futures-timer = "0.1"
-futures = "*"
+futures = "0.1"
 
 [dev-dependencies]
 byteorder = "1"
@@ -28,3 +27,4 @@ byteorder = "1"
 [dependencies.neli]
 git = "https://github.com/jbaublitz/neli"
 branch = "develop"
+features = ["stream"]

@@ -1,18 +1,12 @@
 use std::error::Error;
-use std::fs::File;
 use std::sync::Arc;
 
 use libloading::{Library,Symbol};
-use mio::unix::EventedFd;
 use neli::{Nl,MemWrite};
-use neli::err::NlError;
-use neli::ffi::{NlFamily,GenlId};
-use neli::genlhdr::GenlHdr;
+use neli::ffi::{NlFamily};
 use neli::socket::NlSocket;
 use tokio::{self,spawn};
-use tokio::prelude::{future,Async,Future,Stream};
-use tokio::prelude::stream::ForEach;
-use tokio::executor::Spawn;
+use tokio::prelude::{future,Stream};
 
 use acpi::AcpiEvent;
 use netlink::acpi_event;

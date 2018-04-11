@@ -39,7 +39,6 @@
 #![deny(missing_docs)]
 
 extern crate futures;
-extern crate futures_timer;
 extern crate getopts;
 extern crate ini;
 extern crate libc;
@@ -54,7 +53,6 @@ mod event;
 mod evdev;
 mod filter;
 mod netlink;
-mod timer;
 
 use std::process;
 

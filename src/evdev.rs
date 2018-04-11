@@ -10,7 +10,6 @@ use libc;
 use mio::{self,Evented};
 use mio::unix::EventedFd;
 use tokio::prelude::{Async,Stream};
-use tokio::reactor::PollEvented2;
 
 #[derive(Debug)]
 struct EvdevEvents(HashMap<String, String>);
