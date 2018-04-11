@@ -21,7 +21,7 @@ pub fn resolve_acpi_family_id() -> Result<u32, NlError> {
                                             vec![NlmF::Request, NlmF::Ack],
                                             None, None, genl_hdr);
     msg.serialize(&mut mem)?;
-    let mut mem_read = mem.into();
+    let mem_read = mem.into();
     s.send(mem_read, 0)?;
 
     let mem_resp = MemWrite::new_vec(Some(4096));

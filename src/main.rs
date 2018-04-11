@@ -68,7 +68,7 @@ pub fn main() {
         }
     };
 
-    match event::new_event_loop(args.lib_path.as_str(), args.config_file.acpi, args.config_file.evdev) {
+    match event::new_event_loop(&args.lib_path, args.config_file.acpi, args.config_file.evdev) {
         Ok(a) => a,
         Err(e) => {
             println!("{}", e);

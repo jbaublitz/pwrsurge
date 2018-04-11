@@ -1,16 +1,17 @@
 use std::error::Error;
 use std::fs::File;
+use std::sync::Arc;
 
 use libloading::{Library,Symbol};
 use mio::unix::EventedFd;
+use neli::{Nl,MemWrite};
 use neli::err::NlError;
 use neli::ffi::{NlFamily,GenlId};
 use neli::genlhdr::GenlHdr;
 use neli::socket::NlSocket;
-use tokio;
+use tokio::{self,spawn};
 use tokio::prelude::{future,Async,Future,Stream};
 use tokio::prelude::stream::ForEach;
-use tokio::reactor::PollEvented2;
 use tokio::executor::Spawn;
 
 use acpi::AcpiEvent;
@@ -21,30 +22,42 @@ use netlink;
 
 pub fn new_event_loop(lib_path: &str, acpi_filter: AcpiFilter,
                       evdev_filter: EvdevFilter) -> Result<(), Box<Error>> {
-    let lib = Library::new(lib_path)?;
     let netlink_id = netlink::resolve_acpi_family_id()?;
     let socket = NlSocket::connect(NlFamily::Generic, None, Some(1 << (netlink_id - 1)))?;
     let event_files = evdev::evdev_files()?;
+    let lib = Arc::new(Library::new(lib_path)?);
 
-    let socket = socket.for_each(move |item| {
+    let socket_foreach = socket.for_each(move |item| {
         let acpi_event = match acpi_event(item) {
             Ok(ev) => ev,
-            Err(e) => {
-                println!("{}", e);
-                return tokio::spawn(future::empty());
-            }
+            Err(_) => return spawn(future::empty()),
         };
+        println!("device_class: {}", acpi_event.device_class);
         if acpi_filter.contains_device_class(&acpi_event.device_class) {
-            type AcpiHandler<'sym> = Symbol<'sym, unsafe extern fn(*const AcpiEvent) -> i32>;
-            let f = unsafe { lib.get::<AcpiHandler>(b"acpi") }.unwrap();
-            unsafe { f(&acpi_event as *const AcpiEvent) };
-            tokio::spawn(future::empty())
+            let libref = Arc::clone(&lib);
+            spawn(future::lazy(move || {
+                type AcpiHandler<'sym> = Symbol<'sym, unsafe extern fn(*const AcpiEvent) -> i32>;
+                let f = match unsafe { libref.get::<AcpiHandler>(b"acpi_handler") } {
+                    Ok(f) => f,
+                    Err(e) => {
+                        println!("Failed to load acpi_handler from library: {}", e);
+                        return Err(());
+                    }
+                };
+                let buf = &mut [0; 43];
+                let mut mwrite = MemWrite::new_slice(buf);
+                match acpi_event.serialize(&mut mwrite) {
+                    Ok(_) => (),
+                    Err(_) => return Err(()),
+                };
+                unsafe { f(mwrite.as_slice() as *const _ as *const AcpiEvent) };
+                Ok(())
+            }))
         } else {
-            tokio::spawn(future::empty())
+            spawn(future::empty())
         }
     });
-    tokio::run(socket);
-    println!("HERE");
+    tokio::run(socket_foreach);
     Ok(())
 }
 

@@ -14,7 +14,7 @@ pub struct CfgFile {
 }
 
 pub struct PArgs {
-    pub lib_path: String,
+    pub lib_path: Box<str>,
     pub config_file: CfgFile,
 }
 
@@ -35,11 +35,12 @@ pub fn parse_args() -> Result<PArgs, Box<Error>> {
     let cfg = parse_config(config_path.unwrap_or("/etc/pwrsurge/pwrsurge.conf"))?;
 
     let mut args = PArgs {
-        lib_path: String::new(),
+        lib_path: Box::from(""),
         config_file: cfg,
     };
 
-    args.lib_path = matches.opt_str("l").unwrap_or("/etc/pwrsurge/libevents.so".to_string());
+    args.lib_path = matches.opt_str("l").map(|s| Box::from(s))
+        .unwrap_or(Box::from("/etc/pwrsurge/libevents.so"));
     Ok(args)
 }
 
