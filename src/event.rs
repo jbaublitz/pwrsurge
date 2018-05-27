@@ -20,7 +20,7 @@ pub fn new_event_loop(lib_path: &str, acpi_filter: Arc<AcpiFilter>,
                       evdev_filter: Arc<EvdevFilter>) -> Result<(), Box<Error>> {
     let lib = Arc::new(Library::new(lib_path)?);
     let netlink_id = netlink::resolve_acpi_family_id()?;
-    let socket = NlSocket::connect(NlFamily::Generic, None, Some(1 << (netlink_id - 1)))?;
+    let socket = NlSocket::connect(NlFamily::Generic, None, vec![netlink_id])?;
 
     let lib_evdev = Arc::clone(&lib);
     let event_files = evdev::evdev_files()?.into_iter().map(move |string| {
