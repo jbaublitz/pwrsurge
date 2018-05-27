@@ -38,12 +38,10 @@
 
 #![deny(missing_docs)]
 
-extern crate futures;
 extern crate getopts;
 extern crate ini;
 extern crate libc;
 extern crate libloading;
-extern crate mio;
 extern crate neli;
 extern crate tokio;
 
@@ -55,6 +53,7 @@ mod filter;
 mod netlink;
 
 use std::process;
+use std::sync::Arc;
 
 /// Main function
 pub fn main() {
@@ -66,7 +65,8 @@ pub fn main() {
         }
     };
 
-    match event::new_event_loop(&args.lib_path, args.config_file.acpi, args.config_file.evdev) {
+    match event::new_event_loop(&args.lib_path, Arc::new(args.config_file.acpi),
+            Arc::new(args.config_file.evdev)) {
         Ok(a) => a,
         Err(e) => {
             println!("{}", e);
