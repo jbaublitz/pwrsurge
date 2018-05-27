@@ -85,7 +85,7 @@ mod test {
         acpi_event_serialized.write_u32::<NativeEndian>(5).unwrap();
         acpi_event_serialized.write_u32::<NativeEndian>(7).unwrap();
 
-        let mut acpi_event = AcpiEvent {
+        let acpi_event = AcpiEvent {
             device_class: "AAAAAA".to_string(),
             bus_id: "AAAAA".to_string(),
             event_type: 5,
