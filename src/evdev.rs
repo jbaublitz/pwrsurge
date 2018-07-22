@@ -148,7 +148,7 @@ B: SW=10"#;
     fn test_parse_event_file() {
         let mut evdev_events = EvdevEvents(HashMap::new());
         evdev_events.parse_events_file().unwrap();
-        assert_eq!(evdev_events.0.get(&"event2".to_string()),
+        assert_eq!(evdev_events.0.get(&"event0".to_string()),
             Some(&"Lid Switch".to_string()));
     }
 }

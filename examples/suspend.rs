@@ -115,7 +115,8 @@ fn suspend_and_lock() -> Result<(), Box<Error>> {
         Command::new("convert").args(&["/tmp/ss.png", "-blur", "0x5", "/tmp/ssb.png"])
             .uid(uid).gid(uid).status()
     }).and_then(|_| {
-        Command::new("i3lock").args(&["-i", "/tmp/ssb.png"]).status()
+        Command::new("i3lock").args(&["-i", "/tmp/ssb.png"])
+            .uid(uid).gid(uid).status()
     }).and_then(|_| {
         Command::new("rm").args(&["-f", "/tmp/ss.png", "/tmp/ssb.png"])
             .uid(uid).gid(uid).status()

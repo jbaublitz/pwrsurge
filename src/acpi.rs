@@ -1,6 +1,7 @@
 use std::mem;
 
-use neli::{Nl,MemRead,MemWrite};
+use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
+use neli::Nl;
 use neli::err::{SerError,DeError};
 
 #[derive(Clone)]
@@ -14,12 +15,12 @@ impl Nl for AcpiGenlAttr {
     type SerIn = ();
     type DeIn = ();
 
-    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         let val = self.clone() as u16;
         val.serialize(mem)
     }
 
-    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         let val = u16::deserialize(mem)?;
         Ok(match val {
             i if i == 0 => AcpiGenlAttr::Unspec,
@@ -45,7 +46,7 @@ impl Nl for AcpiEvent {
     type SerIn = ();
     type DeIn = ();
 
-    fn serialize(&self, mem: &mut MemWrite) -> Result<(), SerError> {
+    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
         self.device_class.serialize_with(mem, 20)?;
         self.bus_id.serialize_with(mem, 15)?;
         self.event_type.serialize(mem)?;
@@ -53,7 +54,7 @@ impl Nl for AcpiEvent {
         Ok(())
     }
 
-    fn deserialize(mem: &mut MemRead) -> Result<Self, DeError> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
         Ok(AcpiEvent {
             device_class: String::deserialize_with(mem, 20)?,
             bus_id: String::deserialize_with(mem, 15)?,
@@ -91,9 +92,9 @@ mod test {
             event_type: 5,
             event_data: 7,
         };
-        let mut state = MemWrite::new_vec(None);
+        let mut state = StreamWriteBuffer::new_growable(None);
         acpi_event.serialize(&mut state).unwrap();
 
-        assert_eq!(state.as_slice(), acpi_event_serialized.get_ref().as_slice());
+        assert_eq!(state.as_ref(), acpi_event_serialized.get_ref().as_slice());
     }
 }

@@ -1,8 +1,9 @@
 use std::error::Error;
 use std::sync::Arc;
 
+use buffering::copy::StreamWriteBuffer;
 use libloading::{Library,Symbol};
-use neli::{Nl,MemWrite};
+use neli::Nl;
 use neli::ffi::{CtrlCmd,GenlId,NlFamily};
 use neli::genlhdr::GenlHdr;
 use neli::socket::NlSocket;
@@ -86,12 +87,12 @@ fn create_socket_event_loop(socket: NlSocket<GenlId, GenlHdr<CtrlCmd>>, lib: Arc
                 }
             };
             let buf = &mut [0; 43];
-            let mut mwrite = MemWrite::new_slice(buf);
+            let mut mwrite = StreamWriteBuffer::new_sized(buf);
             match acpi_event.serialize(&mut mwrite) {
                 Ok(_) => (),
                 Err(_) => return Err(()),
             };
-            unsafe { f(mwrite.as_slice() as *const _ as *const AcpiEvent) };
+            unsafe { f(mwrite.as_ref() as *const _ as *const AcpiEvent) };
             Ok(())
         }));
         Ok(())

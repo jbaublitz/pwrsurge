@@ -38,6 +38,7 @@
 
 #![deny(missing_docs)]
 
+extern crate buffering;
 extern crate getopts;
 extern crate ini;
 extern crate libc;
