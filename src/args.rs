@@ -40,7 +40,7 @@ pub fn parse_args() -> Result<PArgs, Box<Error>> {
     };
 
     args.lib_path = matches.opt_str("l").map(|s| Box::from(s))
-        .unwrap_or(Box::from("/etc/pwrsurge/libevents.so"));
+        .unwrap_or(Box::from("/usr/lib/pwrsurge/libevents.so"));
     Ok(args)
 }
 
