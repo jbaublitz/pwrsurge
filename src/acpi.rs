@@ -1,7 +1,6 @@
 use std::mem;
 
-use buffering::copy::{StreamReadBuffer,StreamWriteBuffer};
-use neli::Nl;
+use neli::{Nl,StreamReadBuffer,StreamWriteBuffer};
 use neli::err::{SerError,DeError};
 
 #[derive(Clone)]

@@ -1,11 +1,10 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use buffering::copy::StreamWriteBuffer;
 use libloading::{Library,Symbol};
-use neli::Nl;
-use neli::ffi::{CtrlCmd,GenlId,NlFamily};
-use neli::genlhdr::GenlHdr;
+use neli::{Nl,StreamWriteBuffer};
+use neli::consts::{CtrlCmd,GenlId,NlFamily};
+use neli::genl::Genlmsghdr;
 use neli::socket::NlSocket;
 use tokio::{self,spawn};
 use tokio::fs::File;
@@ -59,14 +58,21 @@ pub fn new_event_loop(lib_path: &str, acpi_filter: Arc<AcpiFilter>,
         for foreach in event_files {
             spawn(foreach);
         }
-        spawn(create_socket_event_loop(socket, lib_clone, acpi_filter));
+        let stream_socket = match neli::socket::tokio::NlSocket::new(socket) {
+            Ok(ss) => ss,
+            Err(e) => {
+                println!("{}", e);
+                return Err(());
+            },
+        };
+        spawn(create_socket_event_loop(stream_socket, lib_clone, acpi_filter));
         Ok(())
     }));
 
     Ok(())
 }
 
-fn create_socket_event_loop(socket: NlSocket<GenlId, GenlHdr<CtrlCmd>>, lib: Arc<Library>,
+fn create_socket_event_loop(socket: neli::socket::tokio::NlSocket<GenlId, Genlmsghdr<CtrlCmd>>, lib: Arc<Library>,
                             acpi_filter: Arc<AcpiFilter>) -> impl Future<Item = (), Error = ()> {
     socket.for_each(move |item| {
         let acpi_event = match acpi_event(item) {
@@ -96,5 +102,8 @@ fn create_socket_event_loop(socket: NlSocket<GenlId, GenlHdr<CtrlCmd>>, lib: Arc
             Ok(())
         }));
         Ok(())
+    }).map_err(|e| {
+        println!("{}", e);
+        ()
     })
 }
