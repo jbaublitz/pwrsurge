@@ -10,17 +10,16 @@ use tokio::{self,spawn};
 use tokio::fs::File;
 use tokio::prelude::{future,Future,Stream};
 
-use acpi::AcpiEvent;
-use netlink::acpi_event;
+use acpi::{acpi_event,AcpiEvent};
 use evdev;
 use filter::{AcpiFilter,EvdevFilter};
-use netlink;
 
 pub fn new_event_loop(lib_path: &str, acpi_filter: Arc<AcpiFilter>,
                       evdev_filter: Arc<EvdevFilter>) -> Result<(), Box<Error>> {
     let lib = Arc::new(Library::new(lib_path)?);
-    let netlink_id = netlink::resolve_acpi_family_id()?;
-    let socket = NlSocket::connect(NlFamily::Generic, None, vec![netlink_id])?;
+    let mut socket = NlSocket::connect(NlFamily::Generic, None, None, true)?;
+    let id = socket.resolve_nl_mcast_group("acpi_event", "acpi_mc_group")?;
+    socket.set_mcast_groups(vec![id])?;
 
     let lib_evdev = Arc::clone(&lib);
     let event_files = evdev::evdev_files()?.into_iter().map(move |string| {
@@ -92,7 +91,7 @@ fn create_socket_event_loop(socket: neli::socket::tokio::NlSocket<GenlId, Genlms
                     return Err(());
                 }
             };
-            let buf = &mut [0; 43];
+            let buf = &mut [0; 44];
             let mut mwrite = StreamWriteBuffer::new_sized(buf);
             match acpi_event.serialize(&mut mwrite) {
                 Ok(_) => (),

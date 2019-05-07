@@ -51,7 +51,6 @@ mod args;
 mod event;
 mod evdev;
 mod filter;
-mod netlink;
 
 use std::process;
 use std::sync::Arc;
