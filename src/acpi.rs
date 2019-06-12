@@ -6,9 +6,9 @@ use neli::err::{DeError,NlError,SerError};
 use neli::genl::Genlmsghdr;
 use neli::nl::Nlmsghdr;
 
-pub fn acpi_event(msg: Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd>>) -> Result<AcpiEvent, NlError> {
-    let mut attr_handle = msg.nl_payload.get_attr_handle::<u16>();
-    Ok(attr_handle.get_payload::<AcpiEvent>(1, None)?)
+pub fn acpi_event(msg: Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, u16>>) -> Result<AcpiEvent, NlError> {
+    let attr_handle = msg.nl_payload.get_attr_handle();
+    Ok(attr_handle.get_attr_payload_as::<AcpiEvent>(1)?)
 }
 
 #[derive(Clone)]

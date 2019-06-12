@@ -2,7 +2,6 @@ use std::error::Error;
 use std::sync::Arc;
 
 use libloading::{Library,Symbol};
-use neli::{Nl,StreamWriteBuffer};
 use neli::consts::{CtrlCmd,GenlId,NlFamily};
 use neli::genl::Genlmsghdr;
 use neli::socket::NlSocket;
@@ -15,7 +14,7 @@ use evdev;
 use filter::{AcpiFilter,EvdevFilter};
 
 pub fn new_event_loop(lib_path: &str, acpi_filter: Arc<AcpiFilter>,
-                      evdev_filter: Arc<EvdevFilter>) -> Result<(), Box<Error>> {
+                      evdev_filter: Arc<EvdevFilter>) -> Result<(), Box<dyn Error>> {
     let lib = Arc::new(Library::new(lib_path)?);
     let mut socket = NlSocket::connect(NlFamily::Generic, None, None, true)?;
     let id = socket.resolve_nl_mcast_group("acpi_event", "acpi_mc_group")?;
@@ -71,9 +70,11 @@ pub fn new_event_loop(lib_path: &str, acpi_filter: Arc<AcpiFilter>,
     Ok(())
 }
 
-fn create_socket_event_loop(socket: neli::socket::tokio::NlSocket<GenlId, Genlmsghdr<CtrlCmd>>, lib: Arc<Library>,
+fn create_socket_event_loop(socket: neli::socket::tokio::NlSocket<GenlId,
+                            Genlmsghdr<CtrlCmd, u16>>, lib: Arc<Library>,
                             acpi_filter: Arc<AcpiFilter>) -> impl Future<Item = (), Error = ()> {
     socket.for_each(move |item| {
+        println!("HERE");
         let acpi_event = match acpi_event(item) {
             Ok(ev) => ev,
             Err(_) => return Ok(()),
@@ -91,13 +92,7 @@ fn create_socket_event_loop(socket: neli::socket::tokio::NlSocket<GenlId, Genlms
                     return Err(());
                 }
             };
-            let buf = &mut [0; 44];
-            let mut mwrite = StreamWriteBuffer::new_sized(buf);
-            match acpi_event.serialize(&mut mwrite) {
-                Ok(_) => (),
-                Err(_) => return Err(()),
-            };
-            unsafe { f(mwrite.as_ref() as *const _ as *const AcpiEvent) };
+            unsafe { f(&acpi_event as *const _ as *const AcpiEvent) };
             Ok(())
         }));
         Ok(())

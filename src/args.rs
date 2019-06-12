@@ -18,7 +18,7 @@ pub struct PArgs {
     pub config_file: CfgFile,
 }
 
-pub fn parse_args() -> Result<PArgs, Box<Error>> {
+pub fn parse_args() -> Result<PArgs, Box<dyn Error>> {
     let mut options = Options::new();
     options.optopt("l", "lib", "LIBRARY_PATH", "Path to plugin library")
         .optopt("c", "config", "CONFIG_PATH", "Path to config file")
@@ -86,7 +86,7 @@ pub fn parse_timer_config(ini: &Ini) -> bool {
     }
 }
 
-pub fn parse_config(config_path: &str) -> Result<CfgFile, Box<Error>> {
+pub fn parse_config(config_path: &str) -> Result<CfgFile, Box<dyn Error>> {
     let ini = Ini::load_from_file(config_path)?;
     let acpi_section = parse_acpi_config(&ini);
     let evdev_section = parse_evdev_config(&ini);

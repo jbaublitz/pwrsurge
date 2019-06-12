@@ -25,6 +25,5 @@ byteorder = "1.2"
 
 [dependencies.neli]
 git = "https://github.com/jbaublitz/neli"
-branch = "multi-msg-feature"
-version = "0.4.0"
+version = "0.4.0-r1"
 features = ["stream"]

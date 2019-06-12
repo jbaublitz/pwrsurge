@@ -113,7 +113,7 @@ impl Stream for EvdevStream {
     }
 }
 
-pub fn evdev_files<'a>() -> Result<Vec<String>, Box<Error>> {
+pub fn evdev_files<'a>() -> Result<Vec<String>, Box<dyn Error>> {
     let events = EvdevEvents::parse_events()?;
     let mut event_files = Vec::new();
     for (event, desc) in events.iter() {
