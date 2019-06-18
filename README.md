@@ -4,4 +4,4 @@
 A power manager written in Rust using [`neli`](https://github.com/jbaublitz/neli).
 
 # Documentation
-Docs live [here](https://docs.rs/crate/pwrsurge/0.2.0-r1)
+Docs live [here](https://docs.rs/crate/pwrsurge/0.2.3)
