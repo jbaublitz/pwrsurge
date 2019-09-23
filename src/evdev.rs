@@ -1,14 +1,14 @@
 use std;
-use std::collections::{self,HashMap};
+use std::collections::{self, HashMap};
 use std::error::Error;
-use std::io::{self,Read};
+use std::io::{self, Read};
 use std::mem;
-use std::slice;
 
+use buffering::NoCopy;
 use libc;
 use tokio::fs::File;
 use tokio::io::AsyncRead;
-use tokio::prelude::{Async,Stream};
+use tokio::prelude::{Async, Stream};
 
 #[derive(Debug)]
 struct EvdevEvents(HashMap<String, String>);
@@ -61,37 +61,14 @@ impl EvdevEvents {
     }
 }
 
+#[derive(NoCopy, Clone, Copy)]
 #[repr(C)]
-pub struct InputEvent {
+#[nocopy_macro(name = "InputEvent")]
+pub struct InputEventStruct {
     pub timestamp: libc::timeval,
     pub event_type: u16,
     pub event_code: u16,
     pub event_value: i32,
-}
-
-impl Default for InputEvent {
-    fn default() -> Self {
-        InputEvent {
-            timestamp: libc::timeval { tv_sec: 0, tv_usec: 0 },
-            event_type: 0,
-            event_code: 0,
-            event_value: 0,
-        }
-    }
-}
-
-impl AsRef<[u8]> for InputEvent {
-    fn as_ref(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self as *const InputEvent as *const u8,
-                                       mem::size_of::<InputEvent>()) }
-    }
-}
-
-impl AsMut<[u8]> for InputEvent {
-    fn as_mut(&mut self) -> &mut [u8] {
-        unsafe { slice::from_raw_parts_mut(self as *mut InputEvent as *mut u8,
-                                           mem::size_of::<InputEvent>()) }
-    }
 }
 
 pub struct EvdevStream(File);
@@ -107,9 +84,23 @@ impl Stream for EvdevStream {
     type Error = ();
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        let mut input_event = InputEvent::default();
-        self.0.poll_read(input_event.as_mut()).map(|async| { async.map(|_| { Some(input_event) }) })
-            .map_err(|e| { println!("{}", e); () })
+        let mut buf = [0; mem::size_of::<InputEventStruct>()];
+        match self.0.poll_read(&mut buf) {
+            Ok(Async::Ready(sz)) => {
+                let event = InputEvent::new_buffer(buf);
+                if sz == mem::size_of::<InputEventStruct>() {
+                    Ok(Async::Ready(Some(event)))
+                } else {
+                    println!("Did not read enough bytes to fill InputEvent buffer");
+                    Err(())
+                }
+            }
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => {
+                println!("{}", e);
+                Err(())
+            }
+        }
     }
 }
 
@@ -140,7 +131,10 @@ B: EV=21
 B: SW=10"#;
         let mut evevents = EvdevEvents(HashMap::new());
         evevents.parse_file_chunk(file_chunk.to_string());
-        assert_eq!(evevents.0.get(&"event8".to_string()), Some(&"HDA Intel PCH Mic".to_string()));
+        assert_eq!(
+            evevents.0.get(&"event8".to_string()),
+            Some(&"HDA Intel PCH Mic".to_string())
+        );
     }
 
     #[test]
@@ -148,7 +142,9 @@ B: SW=10"#;
     fn test_parse_event_file() {
         let mut evdev_events = EvdevEvents(HashMap::new());
         evdev_events.parse_events_file().unwrap();
-        assert_eq!(evdev_events.0.get(&"event0".to_string()),
-            Some(&"Lid Switch".to_string()));
+        assert_eq!(
+            evdev_events.0.get(&"event0".to_string()),
+            Some(&"Lid Switch".to_string())
+        );
     }
 }

@@ -5,7 +5,7 @@ use std::process;
 use getopts::Options;
 use ini::Ini;
 
-use filter::{AcpiFilter,EvdevFilter};
+use filter::{AcpiFilter, EvdevFilter};
 
 pub struct CfgFile {
     pub acpi: AcpiFilter,
@@ -20,7 +20,8 @@ pub struct PArgs {
 
 pub fn parse_args() -> Result<PArgs, Box<dyn Error>> {
     let mut options = Options::new();
-    options.optopt("l", "lib", "LIBRARY_PATH", "Path to plugin library")
+    options
+        .optopt("l", "lib", "LIBRARY_PATH", "Path to plugin library")
         .optopt("c", "config", "CONFIG_PATH", "Path to config file")
         .optflag("h", "help", "Help text");
     let matches = options.parse(env::args())?;
@@ -39,7 +40,9 @@ pub fn parse_args() -> Result<PArgs, Box<dyn Error>> {
         config_file: cfg,
     };
 
-    args.lib_path = matches.opt_str("l").map(|s| Box::from(s))
+    args.lib_path = matches
+        .opt_str("l")
+        .map(|s| Box::from(s))
         .unwrap_or(Box::from("/usr/lib/pwrsurge/libevents.so"));
     Ok(args)
 }
@@ -49,12 +52,13 @@ pub fn parse_acpi_config(ini: &Ini) -> AcpiFilter {
         Some(acpi) => {
             let whitelist = acpi.get("device_class_whitelist").map(|s| s.to_owned());
             match whitelist {
-                Some(wl) => wl.split(",").filter_map(|s| {
-                        if s == "" { None } else { Some(s.to_string()) }
-                    }).collect::<Vec<String>>(),
+                Some(wl) => wl
+                    .split(",")
+                    .filter_map(|s| if s == "" { None } else { Some(s.to_string()) })
+                    .collect::<Vec<String>>(),
                 _ => Vec::new(),
             }
-        },
+        }
         _ => Vec::new(),
     };
     AcpiFilter::new(vec)
@@ -63,25 +67,42 @@ pub fn parse_acpi_config(ini: &Ini) -> AcpiFilter {
 pub fn parse_evdev_config(ini: &Ini) -> EvdevFilter {
     match ini.section(Some("evdev")) {
         Some(evdev) => {
-            let type_whitelist = evdev.get("type_whitelist").map(|s| s.to_owned())
-                .unwrap_or(String::new()).split(",").filter_map(|s| s.parse::<u16>().ok())
-                .collect::<Vec<u16>>();
-            let code_whitelist = evdev.get("code_whitelist").map(|s| s.to_owned())
-                .unwrap_or(String::new()).split(",").filter_map(|s| s.parse::<u16>().ok())
-                .collect::<Vec<u16>>();
-            EvdevFilter::new(type_whitelist, code_whitelist)
-        },
-        _ => EvdevFilter::new(Vec::new(), Vec::new()),
+            let type_whitelist = evdev
+                .get("event_type_whitelist")
+                .map(|s| s.to_owned())
+                .unwrap_or(String::new())
+                .split(",")
+                .filter_map(|s| s.parse::<u16>().ok())
+                .collect::<Vec<_>>();
+            let code_whitelist = evdev
+                .get("event_code_whitelist")
+                .map(|s| s.to_owned())
+                .unwrap_or(String::new())
+                .split(",")
+                .filter_map(|s| s.parse::<u16>().ok())
+                .collect::<Vec<_>>();
+            let value_whitelist = evdev
+                .get("event_value_whitelist")
+                .map(|s| s.to_owned())
+                .unwrap_or(String::new())
+                .split(",")
+                .filter_map(|s| s.parse::<i32>().ok())
+                .collect::<Vec<_>>();
+            EvdevFilter::new(type_whitelist, code_whitelist, value_whitelist)
+        }
+        _ => EvdevFilter::new(Vec::new(), Vec::new(), Vec::new()),
     }
 }
 
 pub fn parse_timer_config(ini: &Ini) -> bool {
     match ini.section(Some("timer")) {
         Some(timer) => {
-            let input = timer.get("reset_on_input")
-                .map(|v| v.parse::<bool>().unwrap_or(false)).unwrap_or(false);
+            let input = timer
+                .get("reset_on_input")
+                .map(|v| v.parse::<bool>().unwrap_or(false))
+                .unwrap_or(false);
             input
-        },
+        }
         _ => false,
     }
 }

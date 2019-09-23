@@ -1,10 +1,10 @@
 use std::mem;
 
-use neli::{Nl,StreamReadBuffer,StreamWriteBuffer};
-use neli::consts::{CtrlCmd,GenlId};
-use neli::err::{DeError,NlError,SerError};
+use neli::consts::{CtrlCmd, GenlId};
+use neli::err::{DeError, NlError, SerError};
 use neli::genl::Genlmsghdr;
 use neli::nl::Nlmsghdr;
+use neli::{Nl, StreamReadBuffer, StreamWriteBuffer};
 
 pub fn acpi_event(msg: Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, u16>>) -> Result<AcpiEvent, NlError> {
     let attr_handle = msg.nl_payload.get_attr_handle();
@@ -24,7 +24,10 @@ impl Nl for AcpiGenlAttr {
         val.serialize(mem)
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         let val = u16::deserialize(mem)?;
         Ok(match val {
             i if i == 0 => AcpiGenlAttr::Unspec,
@@ -38,7 +41,7 @@ impl Nl for AcpiGenlAttr {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct AcpiEvent {
     pub device_class: String,
     pub bus_id: String,
@@ -62,7 +65,10 @@ impl Nl for AcpiEvent {
         Ok(())
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError> where B: AsRef<[u8]> {
+    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
+    where
+        B: AsRef<[u8]>,
+    {
         Ok(AcpiEvent {
             device_class: {
                 mem.set_size_hint(20);
@@ -86,16 +92,20 @@ impl Nl for AcpiEvent {
 mod test {
     extern crate byteorder;
 
+    use self::byteorder::{NativeEndian, WriteBytesExt};
     use super::*;
-    use std::io::{Cursor,Write};
-    use self::byteorder::{WriteBytesExt,NativeEndian};
+    use std::io::{Cursor, Write};
 
     #[test]
     fn test_acpi_event_serialize() {
         let mut acpi_event_serialized = Cursor::new(Vec::new());
-        acpi_event_serialized.write(&vec![65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0]).unwrap();
-        acpi_event_serialized.write(&vec![65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        acpi_event_serialized
+            .write(&vec![
+                65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ])
+            .unwrap();
+        acpi_event_serialized
+            .write(&vec![65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
             .unwrap();
         acpi_event_serialized.write_u32::<NativeEndian>(5).unwrap();
         acpi_event_serialized.write_u32::<NativeEndian>(7).unwrap();
@@ -121,12 +131,15 @@ mod test {
             event_data: 7,
         };
 
-        let mut acpi_event_buffer = StreamWriteBuffer::new_growable(
-            Some(acpi_event_deserialized.size())
-        );
-        acpi_event_buffer.write(&vec![65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                    0, 0, 0, 0, 0]).unwrap();
-        acpi_event_buffer.write(&vec![65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        let mut acpi_event_buffer =
+            StreamWriteBuffer::new_growable(Some(acpi_event_deserialized.size()));
+        acpi_event_buffer
+            .write(&vec![
+                65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ])
+            .unwrap();
+        acpi_event_buffer
+            .write(&vec![65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
             .unwrap();
         acpi_event_buffer.write_u32::<NativeEndian>(5).unwrap();
         acpi_event_buffer.write_u32::<NativeEndian>(7).unwrap();

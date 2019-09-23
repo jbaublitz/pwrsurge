@@ -1,6 +1,6 @@
 [package]
 name = "pwrsurge"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["John Baublitz <john.m.baublitz@gmail.com>"]
 description = "Dynamic, minimalistic power manager written in Rust"
 license = "BSD-3-Clause"
@@ -13,7 +13,6 @@ include = [
 ]
 
 [dependencies]
-buffering = "0.1"
 libc = "0.2"
 libloading = "0.5"
 getopts = "0.2"
@@ -24,5 +23,9 @@ tokio = "0.1.6"
 byteorder = "1.2"
 
 [dependencies.neli]
-version = "0.4.1"
+version = "0.4.3-r2"
 features = ["stream"]
+
+[dependencies.buffering]
+version = "0.4.0"
+features = ["copy", "nocopy"]

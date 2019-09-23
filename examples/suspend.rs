@@ -1,8 +1,11 @@
+extern crate buffering;
 extern crate libc;
 
 use std::error::Error;
-use std::fs::{self,File,OpenOptions};
-use std::io::{self,Read,Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+
+use buffering::NoCopy;
 
 macro_rules! try_int {
     ( $( $tokens:tt )* ) => {
@@ -24,8 +27,10 @@ pub struct AcpiEvent {
     pub event_data: u32,
 }
 
+#[derive(Copy, Clone, NoCopy)]
 #[repr(C)]
-pub struct InputEvent {
+#[nocopy_macro(name = "InputEvent")]
+pub struct InputEventStruct {
     timestamp: libc::timeval,
     event_type: u16,
     event_code: u16,
@@ -44,10 +49,12 @@ fn ac_is_online() -> Result<bool, io::Error> {
                 Err(_) => {
                     println!("Unsuccessful conversion from symbolic link name to string");
                     return Err(io::Error::from(io::ErrorKind::InvalidInput));
-                },
+                }
             };
-            let ac_file = format!("/sys/bus/acpi/drivers/ac/{}/power_supply/AC/online",
-                                  direntry_string);
+            let ac_file = format!(
+                "/sys/bus/acpi/drivers/ac/{}/power_supply/AC/online",
+                direntry_string
+            );
             let mut file = File::open(ac_file.as_str())?;
             let mut online_string = String::new();
             file.read_to_string(&mut online_string)?;
@@ -191,8 +198,10 @@ fn assert_all_cpu_states(is_online: bool) -> Result<(), Box<dyn Error>> {
                     return Err(Box::new(io::Error::from(io::ErrorKind::InvalidData)));
                 }
             };
-            let cpu_path = format!("/sys/bus/cpu/devices/{}/cpufreq/scaling_governor",
-                                   direntry_string);
+            let cpu_path = format!(
+                "/sys/bus/cpu/devices/{}/cpufreq/scaling_governor",
+                direntry_string
+            );
             println!("Asserting CPU state for {}", cpu_path);
             assert_cpu_state(is_online, cpu_path.as_str())?;
         }
@@ -229,13 +238,14 @@ pub fn acpi_handler(event: *const AcpiEvent) -> i32 {
 #[no_mangle]
 pub fn evdev_handler(event: *const InputEvent) -> i32 {
     let event_ref = unsafe { &*event };
-    println!("Event type: {}", event_ref.event_type);
-    println!("Event code: {}", event_ref.event_code);
-    println!("Event value: {}", event_ref.event_value);
+    println!("Seconds: {}", event_ref.get_timestamp().tv_sec);
+    println!("Microseconds: {}", event_ref.get_timestamp().tv_usec);
+    println!("Event type: {}", event_ref.get_event_type());
+    println!("Event code: {}", event_ref.get_event_code());
+    println!("Event value: {}", event_ref.get_event_value());
 
     0
 }
 
 /// Only for `examples` directory to compile on `cargo test`
-pub fn main() {
-}
+pub fn main() {}

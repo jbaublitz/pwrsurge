@@ -48,8 +48,8 @@ extern crate tokio;
 
 mod acpi;
 mod args;
-mod event;
 mod evdev;
+mod event;
 mod filter;
 
 use std::process;
@@ -65,8 +65,11 @@ pub fn main() {
         }
     };
 
-    match event::new_event_loop(&args.lib_path, Arc::new(args.config_file.acpi),
-            Arc::new(args.config_file.evdev)) {
+    match event::new_event_loop(
+        &args.lib_path,
+        Arc::new(args.config_file.acpi),
+        Arc::new(args.config_file.evdev),
+    ) {
         Ok(a) => a,
         Err(e) => {
             println!("{}", e);
