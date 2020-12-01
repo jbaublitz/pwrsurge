@@ -151,11 +151,12 @@ impl Nl for AcpiEvent {
 
 #[cfg(test)]
 mod test {
-    extern crate byteorder;
-
-    use self::byteorder::{NativeEndian, WriteBytesExt};
     use super::*;
+
     use std::io::{Cursor, Write};
+
+    use byteorder::{NativeEndian, WriteBytesExt};
+    use neli::utils::serialize;
 
     #[test]
     fn test_acpi_event_serialize() {
@@ -172,28 +173,26 @@ mod test {
         acpi_event_serialized.write_u32::<NativeEndian>(7).unwrap();
 
         let acpi_event = AcpiEvent {
-            device_class: "AAAAAA".to_string(),
-            bus_id: "AAAAA".to_string(),
+            device_class: DeviceClass("AAAAAA".to_string()),
+            bus_id: BusId("AAAAA".to_string()),
             event_type: 5,
             event_data: 7,
         };
-        let mut state = StreamWriteBuffer::new_growable(None);
-        acpi_event.serialize(&mut state).unwrap();
+        let state = serialize(&acpi_event, false).unwrap();
 
-        assert_eq!(state.as_ref(), acpi_event_serialized.get_ref().as_slice());
+        assert_eq!(state.as_slice(), acpi_event_serialized.get_ref().as_slice());
     }
 
     #[test]
     fn test_acpi_event_deserialize() {
         let acpi_event_deserialized = AcpiEvent {
-            device_class: "AAAAAA".to_string(),
-            bus_id: "AAAAA".to_string(),
+            device_class: DeviceClass("AAAAAA".to_string()),
+            bus_id: BusId("AAAAA".to_string()),
             event_type: 5,
             event_data: 7,
         };
 
-        let mut acpi_event_buffer =
-            StreamWriteBuffer::new_growable(Some(acpi_event_deserialized.size()));
+        let mut acpi_event_buffer = Cursor::new(Vec::new());
         acpi_event_buffer
             .write(&vec![
                 65, 65, 65, 65, 65, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -205,9 +204,7 @@ mod test {
         acpi_event_buffer.write_u32::<NativeEndian>(5).unwrap();
         acpi_event_buffer.write_u32::<NativeEndian>(7).unwrap();
 
-        let mut acpi_event_serialized = StreamReadBuffer::new(acpi_event_buffer);
-
-        let acpi_event = AcpiEvent::deserialize(&mut acpi_event_serialized).unwrap();
+        let acpi_event = AcpiEvent::deserialize(acpi_event_buffer.get_mut().as_mut_slice()).unwrap();
 
         assert_eq!(acpi_event, acpi_event_deserialized);
     }

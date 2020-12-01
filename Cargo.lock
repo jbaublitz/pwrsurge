@@ -178,7 +178,9 @@ dependencies = [
 
 [[package]]
 name = "neli"
-version = "0.5.0"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afe3afe34744e9f33369008c813f06020448cf959b02dac4c47b6f66780dabda"
 dependencies = [
  "byteorder",
  "futures-util",
