@@ -1,11 +1,13 @@
-use std::env;
-use std::error::Error;
-use std::process;
+use std::{
+    env,
+    error::Error,
+    process,
+};
 
 use getopts::Options;
 use ini::Ini;
 
-use filter::{AcpiFilter, EvdevFilter};
+use crate::filter::{AcpiFilter, EvdevFilter};
 
 pub struct CfgFile {
     pub acpi: AcpiFilter,

@@ -1,30 +1,144 @@
-extern crate buffering;
-extern crate libc;
-
-use std::error::Error;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::{
+    error::Error,
+    fs::{self, File, OpenOptions},
+    io::{self, Read, Write},
+    slice,
+};
 
 use buffering::NoCopy;
+use neli::{
+    err::{DeError, SerError},
+    types::{DeBuffer, SerBuffer},
+    serialize, deserialize, Nl,
+};
 
 macro_rules! try_int {
-    ( $( $tokens:tt )* ) => {
-        match $( $tokens )* {
+    ( $expr:expr ) => {
+        match $expr {
             Ok(val) => val,
             Err(e) => {
-                println!("{}", e.description());
+                println!("{}", e);
                 return -1;
             },
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+pub struct DeviceClass(pub String);
+
+impl Nl for DeviceClass {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        if mem.len() > self.size() {
+            return Err(SerError::BufferNotFilled);
+        } else if mem.len() < self.size() {
+            return Err(SerError::UnexpectedEOB);
+        }
+        let position = self.0.size();
+        self.0.serialize(&mut mem[..position])
+    }
+
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        if mem.len() > Self::type_size().expect("Constant size") {
+            return Err(DeError::BufferNotParsed);
+        } else if mem.len() < Self::type_size().expect("Constant size") {
+            return Err(DeError::UnexpectedEOB);
+        }
+        let position = mem.iter().position(|elem| *elem == 0)
+            .ok_or_else(|| {
+                DeError::new("No null byte found in C string")
+            })?;
+
+        Ok(DeviceClass(String::deserialize(&mem[..position + 1])?))
+    }
+
+    fn size(&self) -> usize {
+        Self::type_size().expect("Constant size")
+    }
+
+    fn type_size() -> Option<usize> {
+        Some(20)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BusId(pub String);
+
+impl Nl for BusId {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        if mem.len() > self.size() {
+            return Err(SerError::BufferNotFilled);
+        } else if mem.len() < self.size() {
+            return Err(SerError::UnexpectedEOB);
+        }
+        let position = self.0.size();
+        self.0.serialize(&mut mem[..position])
+    }
+
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        if mem.len() > Self::type_size().expect("Constant size") {
+            return Err(DeError::BufferNotParsed);
+        } else if mem.len() < Self::type_size().expect("Constant size") {
+            return Err(DeError::UnexpectedEOB);
+        }
+        let position = mem.iter().position(|elem| *elem == 0)
+            .ok_or_else(|| {
+                DeError::new("No null byte found in C string")
+            })?;
+
+        Ok(BusId(String::deserialize(&mem[..position + 1])?))
+    }
+
+    fn size(&self) -> usize {
+        Self::type_size().expect("Constant size")
+    }
+
+    fn type_size() -> Option<usize> {
+        Some(16)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct AcpiEvent {
-    pub device_class: String,
-    pub bus_id: String,
+    pub device_class: DeviceClass,
+    pub bus_id: BusId,
     pub event_type: u32,
     pub event_data: u32,
+}
+
+impl Nl for AcpiEvent {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
+            mem;
+            self.device_class;
+            self.bus_id;
+            self.event_type;
+            self.event_data
+        };
+        Ok(())
+    }
+
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            AcpiEvent {
+                device_class: DeviceClass,
+                bus_id: BusId,
+                event_type: u32,
+                event_data: u32
+            }
+        })
+    }
+
+    fn size(&self) -> usize {
+        self.device_class.size() + self.bus_id.size() + self.event_type.size() + self.event_data.size()
+    }
+    
+    fn type_size() -> Option<usize> {
+        DeviceClass::type_size()
+            .and_then(|dcs| BusId::type_size().map(|bs| dcs + bs))
+            .and_then(|acc| u32::type_size().map(|us| acc + us * 2))
+    }
 }
 
 #[derive(Copy, Clone, NoCopy)]
@@ -159,8 +273,8 @@ fn ac_is_online() -> Result<bool, io::Error> {
 //}
 
 fn battery(event: &AcpiEvent) -> i32 {
-    println!("Device class: {}", event.device_class);
-    println!("Bus ID: {}", event.bus_id);
+    println!("Device class: {}", event.device_class.0);
+    println!("Bus ID: {}", event.bus_id.0);
     println!("Event type: {}", event.event_type);
     println!("Event data: {}", event.event_data);
 
@@ -216,12 +330,14 @@ fn ac_adapter() -> i32 {
 }
 
 #[no_mangle]
-pub fn acpi_handler(event: *const AcpiEvent) -> i32 {
-    let event_ref = unsafe { &*event };
+pub fn acpi_handler(event_ptr: *const u8) -> i32 {
+    let event_buf = unsafe { slice::from_raw_parts(event_ptr, AcpiEvent::type_size().expect("constant size")) };
+    let event = try_int!(AcpiEvent::deserialize(event_buf));
+    println!("{:?}", event);
 
-    match event_ref.device_class.as_str() {
-        "battery" => battery(event_ref),
-        "ac_adapter" => ac_adapter(),
+    match event.device_class.0.as_str() {
+        "battery" => battery(&event),
+        "ac_adapter" | "processor" => ac_adapter(),
         _ => 0,
     }
 }

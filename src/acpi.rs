@@ -1,90 +1,151 @@
-use std::mem;
-
-use neli::consts::{CtrlCmd, GenlId};
-use neli::err::{DeError, NlError, SerError};
-use neli::genl::Genlmsghdr;
-use neli::nl::Nlmsghdr;
-use neli::{Nl, StreamReadBuffer, StreamWriteBuffer};
+use neli::{
+    consts::{genl::*, nl::*},
+    deserialize,
+    err::{DeError, NlError, SerError},
+    genl::Genlmsghdr,
+    impl_var,
+    nl::{Nlmsghdr, NlPayload},
+    serialize,
+    types::{DeBuffer, SerBuffer},
+    Nl,
+};
 
 pub fn acpi_event(msg: Nlmsghdr<GenlId, Genlmsghdr<CtrlCmd, u16>>) -> Result<AcpiEvent, NlError> {
-    let attr_handle = msg.nl_payload.get_attr_handle();
+    let genl = match msg.nl_payload {
+        NlPayload::Payload(genl) => genl,
+        NlPayload::Err(e) => return Err(NlError::from(e)),
+        NlPayload::Ack(_) => {
+            return Err(NlError::new("Received unexpected ACK from netlink"));
+        }
+        NlPayload::Empty => {
+            return Err(NlError::new("Received empty packet from netlink"));
+        }
+    };
+    let attr_handle = genl.get_attr_handle();
     Ok(attr_handle.get_attr_payload_as::<AcpiEvent>(1)?)
 }
 
-#[derive(Clone)]
-pub enum AcpiGenlAttr {
-    Unspec = 0,
-    Event = 1,
-    UnrecognizedVariant,
-}
+impl_var!(
+    pub AcpiGenlAttr,
+    u16,
+    Unspec => 0,
+    Event => 1
+);
 
-impl Nl for AcpiGenlAttr {
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        let val = self.clone() as u16;
-        val.serialize(mem)
+#[derive(Debug, PartialEq)]
+pub struct DeviceClass(pub String);
+
+impl Nl for DeviceClass {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        if mem.len() > self.size() {
+            return Err(SerError::BufferNotFilled);
+        } else if mem.len() < self.size() {
+            return Err(SerError::UnexpectedEOB);
+        }
+        let position = self.0.size();
+        self.0.serialize(&mut mem[..position])
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        let val = u16::deserialize(mem)?;
-        Ok(match val {
-            i if i == 0 => AcpiGenlAttr::Unspec,
-            i if i == 1 => AcpiGenlAttr::Event,
-            _ => AcpiGenlAttr::UnrecognizedVariant,
-        })
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        if mem.len() > Self::type_size().expect("Constant size") {
+            return Err(DeError::BufferNotParsed);
+        } else if mem.len() < Self::type_size().expect("Constant size") {
+            return Err(DeError::UnexpectedEOB);
+        }
+        let position = mem.iter().position(|elem| *elem == 0)
+            .ok_or_else(|| {
+                DeError::new("No null byte found in C string")
+            })?;
+
+        Ok(DeviceClass(String::deserialize(&mem[..position + 1])?))
     }
 
     fn size(&self) -> usize {
-        mem::size_of::<u16>()
+        Self::type_size().expect("Constant size")
+    }
+
+    fn type_size() -> Option<usize> {
+        Some(20)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BusId(pub String);
+
+impl Nl for BusId {
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        if mem.len() > self.size() {
+            return Err(SerError::BufferNotFilled);
+        } else if mem.len() < self.size() {
+            return Err(SerError::UnexpectedEOB);
+        }
+        let position = self.0.size();
+        self.0.serialize(&mut mem[..position])
+    }
+
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        if mem.len() > Self::type_size().expect("Constant size") {
+            return Err(DeError::BufferNotParsed);
+        } else if mem.len() < Self::type_size().expect("Constant size") {
+            return Err(DeError::UnexpectedEOB);
+        }
+        let position = mem.iter().position(|elem| *elem == 0)
+            .ok_or_else(|| {
+                DeError::new("No null byte found in C string")
+            })?;
+
+        Ok(BusId(String::deserialize(&mem[..position + 1])?))
+    }
+
+    fn size(&self) -> usize {
+        Self::type_size().expect("Constant size")
+    }
+
+    fn type_size() -> Option<usize> {
+        Some(16)
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct AcpiEvent {
-    pub device_class: String,
-    pub bus_id: String,
+    pub device_class: DeviceClass,
+    pub bus_id: BusId,
     pub event_type: u32,
     pub event_data: u32,
 }
 
-impl AcpiEvent {
-    // This is the total size of both string buffer sizes in the C struct
-    const MAGIC_STRING_SIZE_CONST: usize = 36;
-}
-
 impl Nl for AcpiEvent {
-    fn serialize(&self, mem: &mut StreamWriteBuffer) -> Result<(), SerError> {
-        mem.set_size_hint(20);
-        self.device_class.serialize(mem)?;
-        mem.set_size_hint(16);
-        self.bus_id.serialize(mem)?;
-        self.event_type.serialize(mem)?;
-        self.event_data.serialize(mem)?;
+    fn serialize(&self, mem: SerBuffer) -> Result<(), SerError> {
+        serialize! {
+            mem;
+            self.device_class;
+            self.bus_id;
+            self.event_type;
+            self.event_data
+        };
         Ok(())
     }
 
-    fn deserialize<B>(mem: &mut StreamReadBuffer<B>) -> Result<Self, DeError>
-    where
-        B: AsRef<[u8]>,
-    {
-        Ok(AcpiEvent {
-            device_class: {
-                mem.set_size_hint(20);
-                String::deserialize(mem)?
-            },
-            bus_id: {
-                mem.set_size_hint(16);
-                String::deserialize(mem)?
-            },
-            event_type: u32::deserialize(mem)?,
-            event_data: u32::deserialize(mem)?,
+    fn deserialize(mem: DeBuffer) -> Result<Self, DeError> {
+        Ok(deserialize! {
+            mem;
+            AcpiEvent {
+                device_class: DeviceClass,
+                bus_id: BusId,
+                event_type: u32,
+                event_data: u32
+            }
         })
     }
 
     fn size(&self) -> usize {
-        Self::MAGIC_STRING_SIZE_CONST + self.event_type.size() + self.event_data.size()
+        self.device_class.size() + self.bus_id.size() + self.event_type.size() + self.event_data.size()
+    }
+    
+    fn type_size() -> Option<usize> {
+        DeviceClass::type_size()
+            .and_then(|dcs| BusId::type_size().map(|bs| dcs + bs))
+            .and_then(|acc| u32::type_size().map(|us| acc + us * 2))
     }
 }
 

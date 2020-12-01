@@ -1,14 +1,20 @@
-use std;
-use std::collections::{self, HashMap};
-use std::error::Error;
-use std::io::{self, Read};
-use std::mem;
+use std::{
+    collections::{self, HashMap},
+    error::Error,
+    fmt::{self, Display},
+    io::{self, Read},
+    mem,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use buffering::NoCopy;
 use libc;
-use tokio::fs::File;
-use tokio::io::AsyncRead;
-use tokio::prelude::{Async, Stream};
+use tokio::{
+    fs::File,
+    io::{AsyncRead, ReadBuf},
+    stream::Stream,
+};
 
 #[derive(Debug)]
 struct EvdevEvents(HashMap<String, String>);
@@ -71,6 +77,17 @@ pub struct InputEventStruct {
     pub event_value: i32,
 }
 
+#[derive(Debug)]
+struct EvdevError(String);
+
+impl Display for EvdevError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Error for EvdevError {}
+
 pub struct EvdevStream(File);
 
 impl EvdevStream {
@@ -80,31 +97,27 @@ impl EvdevStream {
 }
 
 impl Stream for EvdevStream {
-    type Item = InputEvent;
-    type Error = ();
+    type Item = Result<InputEvent, Box<dyn Error + Send + Sync>>;
 
-    fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let mut buf = [0; mem::size_of::<InputEventStruct>()];
-        match self.0.poll_read(&mut buf) {
-            Ok(Async::Ready(sz)) => {
-                let event = InputEvent::new_buffer(buf);
-                if sz == mem::size_of::<InputEventStruct>() {
-                    Ok(Async::Ready(Some(event)))
+        let mut read_buf = ReadBuf::new(&mut buf as &mut [u8]);
+        match <File as AsyncRead>::poll_read(Pin::new(&mut self.0), cx, &mut read_buf) {
+            Poll::Ready(Ok(())) => {
+                if read_buf.filled().len() == mem::size_of::<InputEventStruct>() {
                 } else {
-                    println!("Did not read enough bytes to fill InputEvent buffer");
-                    Err(())
+                    return Err("Did not read enough bytes to fill InputEvent buffer")?
                 }
+                mem::drop(read_buf);
+                Poll::Ready(Some(Ok(InputEvent::new_buffer(buf))))
             }
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(e) => {
-                println!("{}", e);
-                Err(())
-            }
+            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(Box::new(e)))),
+            Poll::Pending => Poll::Pending,
         }
     }
 }
 
-pub fn evdev_files<'a>() -> Result<Vec<String>, Box<dyn Error>> {
+pub fn evdev_files<'a>() -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
     let events = EvdevEvents::parse_events()?;
     let mut event_files = Vec::new();
     for (event, desc) in events.iter() {
