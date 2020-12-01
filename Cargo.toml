@@ -29,6 +29,5 @@ features = ["fs", "rt"]
 byteorder = "1.2"
 
 [dependencies.neli]
-version = "0.5.0"
+version = "0.5.1"
 features = ["async"]
-path = "../neli"
