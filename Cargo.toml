@@ -22,7 +22,7 @@ buffering = "0.5"
 futures-util = "0.3"
 
 [dependencies.tokio]
-version = "0.3"
+version = "1.8"
 features = ["fs", "rt"]
 
 [dev-dependencies]
